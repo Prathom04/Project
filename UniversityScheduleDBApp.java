@@ -2,247 +2,264 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
 import java.sql.*;
+import java.util.ArrayList;
+import java.util.List;
 
-public class UniversityScheduleDBApp {
-    private static final String DB_URL = "jdbc:sqlite:university.db"; // Database URL (university.db)
+public class UniversityScheduleApp {
+    private static final String DB_URL = "jdbc:sqlite:university.db";
+    private JFrame frame;
 
     public static void main(String[] args) {
-        SwingUtilities.invokeLater(() -> createAndShowGUI());
+        SwingUtilities.invokeLater(() -> new UniversityScheduleApp().showLoginScreen());
     }
 
-    private static void createAndShowGUI() {
-        JFrame frame = new JFrame("University Login");
+    private void showLoginScreen() {
+        frame = new JFrame("University Class Scheduler");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.setSize(400, 200);
-        frame.setLayout(new BorderLayout());
+        frame.setSize(400, 250);
 
-        // Login Panel
-        JPanel loginPanel = new JPanel();
-        loginPanel.setLayout(new GridLayout(2, 2));
-
-        JLabel emailLabel = new JLabel("Email:");
+        JPanel panel = new JPanel(new GridLayout(4, 1, 10, 10));
         JTextField emailField = new JTextField();
+        JButton loginBtn = new JButton("Login");
 
-        JButton loginButton = new JButton("Login");
+        panel.add(new JLabel("Enter Email:"));
+        panel.add(emailField);
+        panel.add(loginBtn);
 
-        loginPanel.add(emailLabel);
-        loginPanel.add(emailField);
-        loginPanel.add(new JLabel());  // Empty cell for layout
-        loginPanel.add(loginButton);
-
-        frame.add(loginPanel, BorderLayout.CENTER);
-
-        loginButton.addActionListener(e -> {
-            String email = emailField.getText().trim().toLowerCase(); // Trim and lowercase the email
-
-            if (email.isEmpty()) {
-                return; // Don't proceed if the email is empty
-            }
-
-            // Validate user login based on the email domain
-            if (isValidEmail(email)) {
-                if (email.endsWith("@ustc.bd")) {
-                    // Teacher login
-                    showTeacherDashboard(email);
-                } else {
-                    // Student login
-                    showStudentDashboard();
-                }
-                frame.dispose(); // Close login screen after successful login
+        loginBtn.addActionListener(e -> {
+            String email = emailField.getText().trim();
+            if (email.endsWith("@ustc.bd")) {
+                showTeacherDashboard(email);
+            } else {
+                showStudentSearchOption(email);
             }
         });
 
+        frame.setContentPane(panel);
         frame.setVisible(true);
     }
 
-    // Check if the email domain is valid (for teacher or student)
-    private static boolean isValidEmail(String email) {
-        return email.contains("@");
+    private void showTeacherDashboard(String email) {
+        JFrame teacherFrame = new JFrame("Teacher Dashboard");
+        teacherFrame.setSize(500, 400);
+        teacherFrame.setLayout(new GridLayout(6, 1, 5, 5));
+
+        JButton assignClassBtn = new JButton("Assign Class");
+        JButton viewAllBtn = new JButton("View All Assigned Classes");
+        JButton cancelClassBtn = new JButton("Cancel Class by ID");
+        JButton backBtn = new JButton("Logout");
+
+        assignClassBtn.addActionListener(e -> assignClassScreen(email));
+        viewAllBtn.addActionListener(e -> showAllClasses());
+        cancelClassBtn.addActionListener(e -> cancelClassScreen());
+        backBtn.addActionListener(e -> {
+            teacherFrame.dispose();
+            showLoginScreen();
+        });
+
+        teacherFrame.add(new JLabel("Logged in as: " + email));
+        teacherFrame.add(assignClassBtn);
+        teacherFrame.add(viewAllBtn);
+        teacherFrame.add(cancelClassBtn);
+        teacherFrame.add(backBtn);
+
+        teacherFrame.setVisible(true);
     }
 
-    private static void showTeacherDashboard(String teacherEmail) {
-        JFrame teacherFrame = new JFrame("Teacher Dashboard");
-        teacherFrame.setSize(600, 400);
-        teacherFrame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        teacherFrame.setLayout(new BorderLayout());
+    private void assignClassScreen(String email) {
+        JFrame assignFrame = new JFrame("Assign Class");
+        assignFrame.setSize(400, 400);
+        assignFrame.setLayout(new GridLayout(9, 2, 5, 5));
 
-        JTextArea scheduleArea = new JTextArea();
-        scheduleArea.setEditable(false);
-        JScrollPane scrollPane = new JScrollPane(scheduleArea);
-
-        JPanel controlPanel = new JPanel();
-        controlPanel.setLayout(new GridLayout(5, 2));
-
-        JLabel courseLabel = new JLabel("Course:");
+        JTextField nameField = new JTextField();
         JTextField courseField = new JTextField();
-        JLabel roomLabel = new JLabel("Room:");
         JTextField roomField = new JTextField();
-        JLabel timeLabel = new JLabel("Time:");
         JTextField timeField = new JTextField();
-        JLabel batchLabel = new JLabel("Batch:");
         JTextField batchField = new JTextField();
-        JLabel departmentLabel = new JLabel("Department:");
-        JTextField departmentField = new JTextField();
-        JButton assignButton = new JButton("Assign Class");
+        JTextField deptField = new JTextField();
 
-        controlPanel.add(courseLabel);
-        controlPanel.add(courseField);
-        controlPanel.add(roomLabel);
-        controlPanel.add(roomField);
-        controlPanel.add(timeLabel);
-        controlPanel.add(timeField);
-        controlPanel.add(batchLabel);
-        controlPanel.add(batchField);
-        controlPanel.add(departmentLabel);
-        controlPanel.add(departmentField);
+        JButton submit = new JButton("Assign");
+        JButton back = new JButton("Back");
 
-        controlPanel.add(new JLabel());  // Empty cell for layout
-        controlPanel.add(assignButton);
+        assignFrame.add(new JLabel("Teacher Name:"));
+        assignFrame.add(nameField);
+        assignFrame.add(new JLabel("Course:"));
+        assignFrame.add(courseField);
+        assignFrame.add(new JLabel("Room:"));
+        assignFrame.add(roomField);
+        assignFrame.add(new JLabel("Time:"));
+        assignFrame.add(timeField);
+        assignFrame.add(new JLabel("Batch:"));
+        assignFrame.add(batchField);
+        assignFrame.add(new JLabel("Department:"));
+        assignFrame.add(deptField);
+        assignFrame.add(submit);
+        assignFrame.add(back);
 
-        // Fetch and display teacher's current schedule
-        try (Connection conn = connect()) {
-            if (conn != null) {
-                String query = "SELECT * FROM Schedule WHERE teacher_email = ?";
-                PreparedStatement pstmt = conn.prepareStatement(query);
-                pstmt.setString(1, teacherEmail);
-                ResultSet rs = pstmt.executeQuery();
-
-                while (rs.next()) {
-                    String course = rs.getString("course");
-                    String room = rs.getString("room");
-                    String time = rs.getString("time");
-                    String batch = rs.getString("batch");
-                    String department = rs.getString("department");
-                    scheduleArea.append("Course: " + course + ", Room: " + room + ", Time: " + time + 
-                                         ", Batch: " + batch + ", Department: " + department + "\n");
-                }
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
-        // Assign new class to the teacher
-        assignButton.addActionListener(e -> {
-            String course = courseField.getText().trim();
-            String room = roomField.getText().trim();
-            String time = timeField.getText().trim();
-            String batch = batchField.getText().trim();
-            String department = departmentField.getText().trim();
-
-            if (course.isEmpty() || room.isEmpty() || time.isEmpty() || batch.isEmpty() || department.isEmpty()) {
-                return; // Don't proceed if any field is empty
-            }
-
-            // Add new class to the schedule
-            try (Connection conn = connect()) {
-                if (conn != null) {
-                    String insertQuery = "INSERT INTO Schedule (course, teacher_email, room, time, batch, department) VALUES (?, ?, ?, ?, ?, ?)";
-                    PreparedStatement pstmt = conn.prepareStatement(insertQuery);
-                    pstmt.setString(1, course);
-                    pstmt.setString(2, teacherEmail);
-                    pstmt.setString(3, room);
-                    pstmt.setString(4, time);
-                    pstmt.setString(5, batch);
-                    pstmt.setString(6, department);
-                    pstmt.executeUpdate();
-                    JOptionPane.showMessageDialog(teacherFrame, "Class assigned successfully!");
-                    courseField.setText("");
-                    roomField.setText("");
-                    timeField.setText("");
-                    batchField.setText("");
-                    departmentField.setText("");
-                }
+        submit.addActionListener(e -> {
+            try (Connection conn = DriverManager.getConnection(DB_URL)) {
+                String sql = "INSERT INTO Schedule (teacher_email, teacher_name, course, room, time, batch, department) VALUES (?, ?, ?, ?, ?, ?, ?)";
+                PreparedStatement pstmt = conn.prepareStatement(sql);
+                pstmt.setString(1, email);
+                pstmt.setString(2, nameField.getText());
+                pstmt.setString(3, courseField.getText());
+                pstmt.setString(4, roomField.getText());
+                pstmt.setString(5, timeField.getText());
+                pstmt.setString(6, batchField.getText());
+                pstmt.setString(7, deptField.getText());
+                pstmt.executeUpdate();
+                JOptionPane.showMessageDialog(assignFrame, "Class Assigned Successfully!");
             } catch (SQLException ex) {
                 ex.printStackTrace();
             }
         });
 
-        teacherFrame.add(scrollPane, BorderLayout.CENTER);
-        teacherFrame.add(controlPanel, BorderLayout.SOUTH);
+        back.addActionListener(e -> assignFrame.dispose());
 
-        teacherFrame.setVisible(true);
+        assignFrame.setVisible(true);
     }
 
-    private static void showStudentDashboard() {
-        JFrame studentFrame = new JFrame("Student Dashboard");
-        studentFrame.setSize(400, 200);
-        studentFrame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        studentFrame.setLayout(new BorderLayout());
+    private void cancelClassScreen() {
+        JFrame cancelFrame = new JFrame("Cancel Class");
+        cancelFrame.setSize(300, 150);
+        cancelFrame.setLayout(new GridLayout(3, 1, 5, 5));
 
-        JPanel panel = new JPanel();
-        panel.setLayout(new GridLayout(3, 2));
+        JTextField idField = new JTextField();
+        JButton cancelBtn = new JButton("Cancel");
+        JButton backBtn = new JButton("Back");
 
-        JLabel batchLabel = new JLabel("Batch:");
-        JTextField batchField = new JTextField();
-        JLabel departmentLabel = new JLabel("Department:");
-        JTextField departmentField = new JTextField();
+        cancelFrame.add(new JLabel("Enter Class ID to cancel:"));
+        cancelFrame.add(idField);
+        cancelFrame.add(cancelBtn);
+        cancelFrame.add(backBtn);
 
-        JButton viewScheduleButton = new JButton("View Schedule");
-
-        panel.add(batchLabel);
-        panel.add(batchField);
-        panel.add(departmentLabel);
-        panel.add(departmentField);
-        panel.add(viewScheduleButton);
-
-        studentFrame.add(panel, BorderLayout.CENTER);
-
-        viewScheduleButton.addActionListener(e -> {
-            String batch = batchField.getText();
-            String department = departmentField.getText();
-
-            if (batch.isEmpty() || department.isEmpty()) {
-                return; // Don't proceed if batch or department is empty
+        cancelBtn.addActionListener(e -> {
+            try (Connection conn = DriverManager.getConnection(DB_URL)) {
+                String sql = "DELETE FROM Schedule WHERE id = ?";
+                PreparedStatement pstmt = conn.prepareStatement(sql);
+                pstmt.setInt(1, Integer.parseInt(idField.getText()));
+                int rows = pstmt.executeUpdate();
+                JOptionPane.showMessageDialog(cancelFrame, rows > 0 ? "Class Canceled!" : "ID not found.");
+            } catch (SQLException ex) {
+                ex.printStackTrace();
             }
-
-            showStudentSchedule(batch, department);
         });
+
+        backBtn.addActionListener(e -> cancelFrame.dispose());
+
+        cancelFrame.setVisible(true);
+    }
+
+    private void showStudentSearchOption(String email) {
+        JFrame studentFrame = new JFrame("Student Dashboard");
+        studentFrame.setSize(400, 250);
+        studentFrame.setLayout(new GridLayout(4, 1, 5, 5));
+
+        JButton searchByTeacher = new JButton("Teacher's Schedule");
+        JButton searchByBatch = new JButton("Student Schedule (Batch + Department)");
+        JButton viewAll = new JButton("See All Classes");
+        JButton back = new JButton("Logout");
+
+        searchByTeacher.addActionListener(e -> searchByTeacherName());
+        searchByBatch.addActionListener(e -> searchByBatchAndDepartment());
+        viewAll.addActionListener(e -> showAllClasses());
+        back.addActionListener(e -> {
+            studentFrame.dispose();
+            showLoginScreen();
+        });
+
+        studentFrame.add(new JLabel("What are you looking for?"));
+        studentFrame.add(searchByTeacher);
+        studentFrame.add(searchByBatch);
+        studentFrame.add(viewAll);
+        studentFrame.add(back);
 
         studentFrame.setVisible(true);
     }
 
-    private static void showStudentSchedule(String batch, String department) {
-        JFrame scheduleFrame = new JFrame("Your Schedule");
-        scheduleFrame.setSize(400, 300);
-        scheduleFrame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+    private void searchByTeacherName() {
+        JFrame searchFrame = new JFrame("Search by Teacher");
+        searchFrame.setSize(400, 200);
+        searchFrame.setLayout(new GridLayout(3, 1, 5, 5));
 
-        JTextArea scheduleArea = new JTextArea();
-        scheduleArea.setEditable(false);
-        JScrollPane scrollPane = new JScrollPane(scheduleArea);
+        JTextField nameField = new JTextField();
+        JButton searchBtn = new JButton("Search");
 
-        try (Connection conn = connect()) {
-            if (conn != null) {
-                String query = "SELECT * FROM Schedule WHERE batch = ? AND department = ?";
-                PreparedStatement pstmt = conn.prepareStatement(query);
-                pstmt.setString(1, batch);
-                pstmt.setString(2, department);
-                ResultSet rs = pstmt.executeQuery();
+        searchFrame.add(new JLabel("Enter Teacher Name:"));
+        searchFrame.add(nameField);
+        searchFrame.add(searchBtn);
 
-                while (rs.next()) {
-                    String course = rs.getString("course");
-                    String teacher = rs.getString("teacher_email");
-                    String room = rs.getString("room");
-                    String time = rs.getString("time");
-                    scheduleArea.append("Course: " + course + ", Teacher: " + teacher + ", Room: " + room + ", Time: " + time + "\n");
-                }
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        searchBtn.addActionListener(e -> {
+            List<String> results = getClasses("SELECT * FROM Schedule WHERE teacher_name = ?", nameField.getText());
+            showResults(results, "Classes for Teacher: " + nameField.getText());
+        });
 
-        scheduleFrame.add(scrollPane, BorderLayout.CENTER);
-        scheduleFrame.setVisible(true);
+        searchFrame.setVisible(true);
     }
 
-    // Database connection method
-    private static Connection connect() {
-        try {
-            Class.forName("org.sqlite.JDBC");
-            Connection conn = DriverManager.getConnection(DB_URL);
-            return conn;
-        } catch (Exception e) {
+    private void searchByBatchAndDepartment() {
+        JFrame searchFrame = new JFrame("Search Student Schedule");
+        searchFrame.setSize(400, 250);
+        searchFrame.setLayout(new GridLayout(4, 2, 5, 5));
+
+        JTextField batchField = new JTextField();
+        JTextField deptField = new JTextField();
+        JButton searchBtn = new JButton("Search");
+
+        searchFrame.add(new JLabel("Batch:"));
+        searchFrame.add(batchField);
+        searchFrame.add(new JLabel("Department:"));
+        searchFrame.add(deptField);
+        searchFrame.add(searchBtn);
+
+        searchBtn.addActionListener(e -> {
+            String sql = "SELECT * FROM Schedule WHERE batch = ? AND department = ?";
+            List<String> results = getClasses(sql, batchField.getText(), deptField.getText());
+            showResults(results, "Schedule for " + batchField.getText() + " - " + deptField.getText());
+        });
+
+        searchFrame.setVisible(true);
+    }
+
+    private void showAllClasses() {
+        List<String> classes = getClasses("SELECT * FROM Schedule");
+        showResults(classes, "All Assigned Classes");
+    }
+
+    private List<String> getClasses(String query, String... params) {
+        List<String> results = new ArrayList<>();
+        try (Connection conn = DriverManager.getConnection(DB_URL);
+             PreparedStatement pstmt = conn.prepareStatement(query)) {
+            for (int i = 0; i < params.length; i++) {
+                pstmt.setString(i + 1, params[i]);
+            }
+            ResultSet rs = pstmt.executeQuery();
+            while (rs.next()) {
+                String line = "ID: " + rs.getInt("id") +
+                        ", Teacher: " + rs.getString("teacher_name") +
+                        ", Email: " + rs.getString("teacher_email") +
+                        ", Course: " + rs.getString("course") +
+                        ", Room: " + rs.getString("room") +
+                        ", Time: " + rs.getString("time") +
+                        ", Batch: " + rs.getString("batch") +
+                        ", Dept: " + rs.getString("department");
+                results.add(line);
+            }
+        } catch (SQLException e) {
             e.printStackTrace();
         }
-        return null;
+        return results;
+    }
+
+    private void showResults(List<String> data, String title) {
+        JFrame resultFrame = new JFrame(title);
+        resultFrame.setSize(600, 400);
+        JTextArea textArea = new JTextArea();
+        textArea.setEditable(false);
+        for (String line : data) {
+            textArea.append(line + "\n");
+        }
+        resultFrame.add(new JScrollPane(textArea));
+        resultFrame.setVisible(true);
     }
 }
